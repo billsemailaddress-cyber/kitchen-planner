@@ -316,6 +316,7 @@
 
   /* ---------- Print ---------- */
   @media print{
+    body,.app{overflow:visible!important;height:auto!important}
     .topbar .btn, .zoombar, .hint, .stage-actions, .toast-host, .coach, .drawerToggle, #pentools { display:none !important; }
     .cols{ display:block; }
     .side.left{ display:none; }
@@ -529,6 +530,7 @@ const DEFAULT = ()=>({
   name:"Untitled kitchen",
   finishTheme:"oak",
   units:"ftin",
+  roomShape:"rect",
   room:{w:144,d:120},
   thickness:4.5,            // default wall thickness (inches)
   walls:rectWalls(144,120),
@@ -546,12 +548,18 @@ function migrate(st){
   if(!st.name) st.name="Untitled kitchen";
   if(!st.finishTheme) st.finishTheme="oak";
   if(!st.room) st.room={w:144,d:120};
+  if(!st.roomShape) st.roomShape="rect";
   if(st.thickness==null) st.thickness=4.5;
   if(!Array.isArray(st.walls)||!st.walls.length){
     st.walls=rectWalls(st.room.w||144,st.room.d||120);
   }
+  const wallIds=new Set(st.walls.map(w=>w.id));
   const nameMap={top:"w-top",right:"w-right",bottom:"w-bottom",left:"w-left"};
-  (st.openings||[]).forEach(o=>{ if(!o.wallId) o.wallId = nameMap[o.wall] || (st.walls[0]&&st.walls[0].id); });
+  const fallback=wallIds.has("w-top")?"w-top":(st.walls[0]&&st.walls[0].id);
+  (st.openings||[]).forEach(o=>{
+    if(!o.wallId) o.wallId = nameMap[o.wall] || fallback;
+    if(o.wallId && !wallIds.has(o.wallId)) o.wallId = fallback;
+  });
   return st;
 }
 let state = migrate(load()) || DEFAULT();
@@ -567,6 +575,11 @@ let addN=0;
 
 function uid(){return "i"+Math.random().toString(36).slice(2,9)}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+/** Cook surface for triangle / burners — not range hoods. */
+function isCookSurface(it){
+  const n=it.name||"";
+  return /cooktop/i.test(n) || (/range/i.test(n) && !/hood/i.test(n));
+}
 
 function toast(msg, ms=2200){
   const host=document.getElementById("toastHost");
@@ -751,7 +764,9 @@ function addItem(cat,name,w,d,h,z){
   commit();
 }
 function addOpening(kind){
-  const o={id:uid(),kind,wall:"top",offset:24,width:kind==="door"?32:36};
+  const wallId = (state.walls.find(w=>w.id==="w-top")||state.walls[0]||{}).id;
+  if(!wallId){ toast("Add walls first"); return; }
+  const o={id:uid(),kind,wallId,offset:24,width:kind==="door"?32:36};
   state.openings.push(o);
   commit();
 }
@@ -828,7 +843,7 @@ function drawSnapGuides(){
 }
 function drawWorkTriangle(){
   const sink=centerOf(i=>i.cat==="sink"||/sink/i.test(i.name));
-  const range=centerOf(i=>/range|cooktop/i.test(i.name));
+  const range=centerOf(isCookSurface);
   const fridge=centerOf(i=>/refriger|fridge/i.test(i.name));
   if(!sink||!range||!fridge) return;
   const pts=[sink,range,fridge];
@@ -999,8 +1014,8 @@ function drawItem(it){
     g2.fill(); g2.stroke();
   }
 
-  // range / cooktop: four burners
-  if(it.cat==="appliance" && /range|cooktop/i.test(it.name)){
+  // range / cooktop: four burners (exclude range hood)
+  if(it.cat==="appliance" && isCookSurface(it)){
     const r=Math.max(2,Math.min(pw,ph)*0.11);
     const pads=[[0.3,0.3],[0.7,0.3],[0.3,0.7],[0.7,0.7]];
     g2.fillStyle="rgba(0,0,0,.14)"; g2.strokeStyle="rgba(0,0,0,.4)"; g2.lineWidth=1;
@@ -1774,7 +1789,7 @@ function centerOf(pred){const it=state.items.find(pred);return it?{x:it.x,y:it.y
 function updateClear(){
   const box=document.getElementById("clearBody");
   const sink=centerOf(i=>i.cat==="sink"||/sink/i.test(i.name));
-  const range=centerOf(i=>/range|cooktop/i.test(i.name));
+  const range=centerOf(isCookSurface);
   const fridge=centerOf(i=>/refriger|fridge/i.test(i.name));
   let html="";
 
@@ -1916,7 +1931,10 @@ function commit(rebuildProps=true){
 }
 function render(){ view==="3d"?draw3D():draw2D(); }
 
-function save(){try{localStorage.setItem("kitchenPlan_v1",JSON.stringify(state));}catch(e){}}
+function save(){
+  try{localStorage.setItem("kitchenPlan_v1",JSON.stringify(state));}
+  catch(e){ toast("Couldn’t save locally — use Save file as backup"); }
+}
 function load(){try{const s=localStorage.getItem("kitchenPlan_v1");return s?JSON.parse(s):null;}catch(e){return null;}}
 
 /* ==========================================================
@@ -1935,45 +1953,65 @@ function syncPlanChrome(){
   if(nameEl) nameEl.value=state.name||"Untitled kitchen";
   applyFinishTheme(state.finishTheme||"oak");
 }
-function applyRoomPreset(kind){
+// opts.keepItems: resize path — keep items/openings, scale from current room.w/d (no toast)
+function applyRoomPreset(kind, opts={}){
+  const fromResize=!!opts.keepItems;
   if(kind==="rect"){
-    state.room={w:144,d:120};
-    state.walls=rectWalls(144,120);
+    if(!fromResize) state.room={w:144,d:120};
+    state.roomShape="rect";
+    state.walls=rectWalls(state.room.w,state.room.d);
   }else if(kind==="l"){
-    // outer 14' x 12' L: full rect walls minus inner cut — represent as polyline walls
-    const W=168, D=144, cutW=84, cutD=72;
-    state.room={w:W,d:D};
+    // L: default 14'×12'; cut scales with W×D
+    if(!fromResize) state.room={w:168,d:144};
+    const W=state.room.w, D=state.room.d, cutW=W*0.5, cutD=D*0.5;
+    state.roomShape="l";
     state.walls=[
-      {id:uid(),a:{x:0,y:0},b:{x:W,y:0}},
-      {id:uid(),a:{x:W,y:0},b:{x:W,y:cutD}},
-      {id:uid(),a:{x:W,y:cutD},b:{x:cutW,y:cutD}},
-      {id:uid(),a:{x:cutW,y:cutD},b:{x:cutW,y:D}},
-      {id:uid(),a:{x:cutW,y:D},b:{x:0,y:D}},
-      {id:uid(),a:{x:0,y:D},b:{x:0,y:0}},
+      {id:"w-l0",a:{x:0,y:0},b:{x:W,y:0}},
+      {id:"w-l1",a:{x:W,y:0},b:{x:W,y:cutD}},
+      {id:"w-l2",a:{x:W,y:cutD},b:{x:cutW,y:cutD}},
+      {id:"w-l3",a:{x:cutW,y:cutD},b:{x:cutW,y:D}},
+      {id:"w-l4",a:{x:cutW,y:D},b:{x:0,y:D}},
+      {id:"w-l5",a:{x:0,y:D},b:{x:0,y:0}},
     ];
   }else if(kind==="galley"){
-    state.room={w:120,d:96};
-    state.walls=rectWalls(120,96);
+    if(!fromResize) state.room={w:120,d:96};
+    state.roomShape="galley";
+    state.walls=rectWalls(state.room.w,state.room.d);
   }else if(kind==="u"){
-    const W=156, D=132, open=60;
-    state.room={w:W,d:D};
+    // U: default 13'×11'; mouth scales with W
+    if(!fromResize) state.room={w:156,d:132};
+    const W=state.room.w, D=state.room.d, open=Math.max(24,Math.min(W-24,W*(60/156)));
+    state.roomShape="u";
     state.walls=[
-      {id:uid(),a:{x:0,y:0},b:{x:W,y:0}},
-      {id:uid(),a:{x:W,y:0},b:{x:W,y:D}},
-      {id:uid(),a:{x:W,y:D},b:{x:(W+open)/2,y:D}},
-      {id:uid(),a:{x:(W-open)/2,y:D},b:{x:0,y:D}},
-      {id:uid(),a:{x:0,y:D},b:{x:0,y:0}},
+      {id:"w-u0",a:{x:0,y:0},b:{x:W,y:0}},
+      {id:"w-u1",a:{x:W,y:0},b:{x:W,y:D}},
+      {id:"w-u2",a:{x:W,y:D},b:{x:(W+open)/2,y:D}},
+      {id:"w-u3",a:{x:(W-open)/2,y:D},b:{x:0,y:D}},
+      {id:"w-u4",a:{x:0,y:D},b:{x:0,y:0}},
     ];
   }else return;
-  state.openings=[];
-  autoFit=true; fit2D(); commit(); syncRoomInputs(); toast("Room shape applied");
+  if(!fromResize){
+    state.openings=[];
+  }else{
+    const wallIds=new Set(state.walls.map(w=>w.id));
+    const fallback=wallIds.has("w-top")?"w-top":(state.walls[0]&&state.walls[0].id);
+    (state.openings||[]).forEach(o=>{
+      if(!o.wallId||!wallIds.has(o.wallId)) o.wallId=fallback;
+    });
+  }
+  autoFit=true; fit2D(); commit();
+  if(!fromResize){ syncRoomInputs(); toast("Room shape applied"); }
 }
-// Editing W×D rebuilds the 4 named rectangle walls to that size,
-// leaving any pen-drawn walls untouched.
+// Editing W×D: rect/galley rebuild named walls + keep pen walls;
+// L/U rebuild non-rect geometry from current dimensions (no wall stacking).
 function readRoomInputs(){
   const g=id=>+document.getElementById(id).value||0;
   state.room.w=Math.max(24,g("roomWft")*12+g("roomWin"));
   state.room.d=Math.max(24,g("roomDft")*12+g("roomDin"));
+  if(state.roomShape==="l"||state.roomShape==="u"){
+    applyRoomPreset(state.roomShape, {skipConfirm:true, keepItems:true});
+    return;
+  }
   const named=new Set(["w-top","w-right","w-bottom","w-left"]);
   const custom=state.walls.filter(w=>!named.has(w.id));
   state.walls=[...rectWalls(state.room.w,state.room.d),...custom];

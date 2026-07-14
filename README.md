@@ -39,21 +39,26 @@ Plans are stored in the browser’s local storage (`kitchenPlan_v1`). iOS may cl
 
 ## JSON backup
 
-Use **Save JSON** / **Open JSON** in the app to export and re-import your plan.
+Use **Save file** / **Open file** in the app to export and re-import your plan.
 
 - Keep a copy in Files, email, or cloud drive if you remodel over many sessions.
 - JSON is the portable backup if Safari purges local storage.
+
+## Live site
+
+**https://billsemailaddress-cyber.github.io/kitchen-planner/**
 
 ## Deploy (GitHub Pages)
 
 ### From this repo
 
 1. Push `main` to GitHub (remote `origin`).
-2. In the repo: **Settings → Pages**.
-3. Source: **Deploy from a branch** → branch **`main`** → folder **`/` (root)**.
-4. Save. After a minute or two the site is at:
+2. **Bump the service worker cache** in `sw.js` (`kitchen-planner-vN` → next number) so returning clients drop the old shell.
+3. In the repo: **Settings → Pages**.
+4. Source: **Deploy from a branch** → branch **`main`** → folder **`/` (root)**.
+5. Save. After a minute or two the site is at:
 
-   `https://<owner>.github.io/kitchen-planner/`
+   `https://billsemailaddress-cyber.github.io/kitchen-planner/`
 
 The empty `.nojekyll` file tells Pages to serve files as-is (no Jekyll processing).
 
