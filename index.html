@@ -192,6 +192,51 @@
   .panel-sec{padding:13px 14px;border-bottom:1px solid var(--border)}
   .panel-sec h2{font-size:10.5px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);margin:0 0 10px;font-weight:700}
   .empty{color:var(--faint);font-size:12.5px;font-style:italic}
+  .empty-state{
+    display:flex;flex-direction:column;align-items:center;text-align:center;
+    gap:10px;padding:14px 8px 10px;color:var(--muted);font-size:12.5px;line-height:1.45;
+  }
+  .empty-state p{margin:0;max-width:220px}
+  .empty-illu{
+    position:relative;width:44px;height:36px;margin-bottom:2px;
+  }
+  .empty-illu::before,.empty-illu::after{
+    content:"";position:absolute;border:1.5px solid var(--faint);border-radius:3px;
+    background:color-mix(in srgb,var(--panel) 70%,var(--border));
+  }
+  /* base cabinet body */
+  .empty-illu::before{left:4px;right:4px;bottom:0;height:22px}
+  /* wall cabinet / upper box */
+  .empty-illu::after{left:10px;right:10px;top:0;height:12px}
+  .build-actions{display:flex;gap:6px;margin-top:10px}
+  .build-actions .btn{flex:1;justify-content:center;padding:6px}
+
+  /* Appliance palette glyphs (CSS-only) */
+  .glyph{
+    width:16px;height:16px;flex:none;position:relative;display:inline-block;
+    border:1.5px solid var(--muted);border-radius:2px;box-sizing:border-box;
+  }
+  .glyph[data-kind="fridge"]::before{
+    content:"";position:absolute;left:2px;right:2px;top:45%;height:1.5px;background:var(--muted);
+  }
+  .glyph[data-kind="fridge"]::after{
+    content:"";position:absolute;right:2px;top:3px;width:2px;height:3px;background:var(--muted);border-radius:1px;
+  }
+  .glyph[data-kind="range"]{
+    border-radius:2px;
+  }
+  .glyph[data-kind="range"]::before,.glyph[data-kind="range"]::after{
+    content:"";position:absolute;width:4px;height:4px;border:1.5px solid var(--muted);border-radius:50%;
+  }
+  .glyph[data-kind="range"]::before{left:2px;top:2px;box-shadow:6px 0 0 -1.5px var(--muted),6px 0 0 0 transparent}
+  .glyph[data-kind="range"]::after{left:2px;bottom:2px;box-shadow:6px 0 0 -1.5px var(--muted)}
+  .glyph[data-kind="dw"]::before{
+    content:"";position:absolute;left:2px;right:2px;top:3px;height:1.5px;background:var(--muted);
+  }
+  .glyph[data-kind="dw"]::after{
+    content:"";position:absolute;left:50%;top:7px;width:6px;height:6px;margin-left:-3px;
+    border:1.5px solid var(--muted);border-radius:50%;
+  }
   .prop{display:grid;grid-template-columns:auto 1fr;gap:7px 10px;align-items:center}
   .prop .k{font-size:11.5px;color:var(--muted)}
   .prop .v{font-family:var(--mono);font-size:12.5px;text-align:right}
@@ -267,6 +312,18 @@
   @media (max-width:520px){
     .brand .tick{display:none}
     .tgroup .lbl{display:none}
+  }
+
+  /* ---------- Print ---------- */
+  @media print{
+    .topbar .btn, .zoombar, .hint, .stage-actions, .toast-host, .coach, .drawerToggle, #pentools { display:none !important; }
+    .cols{ display:block; }
+    .side.left{ display:none; }
+    .side.right{ break-before:page; }
+    body::before{
+      content: attr(data-print-title);
+      display:block; font-size:18px; font-weight:700; margin:0 0 8px;
+    }
   }
 </style>
 </head>
@@ -356,7 +413,10 @@
     <aside class="side right">
       <div class="panel-sec" id="propSec">
         <h2>Selected item</h2>
-        <div class="empty" id="propEmpty">Nothing selected. Drop a piece from the left, then click it here to edit exact sizes and position.</div>
+        <div class="empty-state" id="propEmpty">
+          <div class="empty-illu" aria-hidden="true"></div>
+          <p>Drop cabinets from the left to start your plan.</p>
+        </div>
         <div id="propBody" hidden></div>
       </div>
       <div class="panel-sec" id="clearSec">
@@ -595,6 +655,13 @@ function aabb(it){
 /* ==========================================================
    PALETTE (left panel)
 ========================================================== */
+function applianceGlyphKind(name){
+  const n=(name||"").toLowerCase();
+  if(n.includes("fridge")||n.includes("refrigerator")) return "fridge";
+  if(n.includes("range")||n.includes("cooktop")) return "range";
+  if(n.includes("dishwasher")) return "dw";
+  return null;
+}
 function buildPalette(){
   const p=document.getElementById("palette");
   p.innerHTML="";
@@ -608,10 +675,14 @@ function buildPalette(){
       if(typeof spec==="number"){
         w=spec; d=CAT[cat].d; h=CAT[cat].h; z=CAT[cat].z;
         name = cat==="sink" ? `Sink ${spec}` : `${cat[0].toUpperCase()+cat.slice(1)} ${spec}`;
-        b.innerHTML=`<span>${spec}"</span>`;
+        b.innerHTML=`<span class="swatch" style="background:${CAT[cat].fill}"></span><span>${spec}"</span>`;
       }else{
         w=spec.w; d=spec.d||CAT[cat].d; h=spec.h||CAT[cat].h; z=spec.z??CAT[cat].z; name=spec.n;
-        b.innerHTML=`<span>${spec.n}</span><span class="num">${w}&times;${d}</span>`;
+        const kind=cat==="appliance"?applianceGlyphKind(name):null;
+        const lead=kind
+          ? `<span class="glyph" data-kind="${kind}" aria-hidden="true"></span>`
+          : (cat!=="appliance"?`<span class="swatch" style="background:${CAT[cat].fill}"></span>`:"");
+        b.innerHTML=`${lead}<span>${spec.n}</span><span class="num">${w}&times;${d}</span>`;
       }
       b.onclick=()=>addItem(cat,name,w,d,h,z);
       chips.appendChild(b);
@@ -1720,7 +1791,7 @@ function updateClear(){
       <div class="note">NKBA guideline: each leg 4&ndash;9 ft, total 13&ndash;26 ft.</div>`;
   }else{
     const need=[!sink&&"sink",!range&&"range/cooktop",!fridge&&"refrigerator"].filter(Boolean);
-    html+=`<div class="empty">Add a ${need.join(", ")} to check the work triangle.</div>`;
+    html+=`<div class="empty-state"><div class="empty-illu" aria-hidden="true"></div><p>Add a ${need.join(", ")} to check the work triangle.</p></div>`;
   }
 
   // counter run + nearest-neighbor min gap
@@ -1760,16 +1831,25 @@ function minAisle(){
 /* ==========================================================
    BUILD LIST
 ========================================================== */
-function updateBuild(){
-  const box=document.getElementById("buildBody");
-  if(!state.items.length){box.innerHTML=`<div class="empty">Empty. Drop cabinets and appliances to build your list.</div>`;return;}
+function buildRows(){
   const map=new Map();
   state.items.filter(i=>i.cat!=="pin").forEach(it=>{
     const key=`${it.cat}|${it.name}|${it.w}x${it.d}x${it.h}`;
     if(!map.has(key))map.set(key,{...it,qty:0});
     map.get(key).qty++;
   });
-  const rows=[...map.values()].sort((a,b)=>Object.keys(CAT).indexOf(a.cat)-Object.keys(CAT).indexOf(b.cat)||a.name.localeCompare(b.name));
+  return [...map.values()].sort((a,b)=>Object.keys(CAT).indexOf(a.cat)-Object.keys(CAT).indexOf(b.cat)||a.name.localeCompare(b.name));
+}
+function buildListText(){
+  return buildRows().map(r=>`${r.qty}x ${r.name}  ${r.w}x${r.d}x${r.h}`).join("\n");
+}
+function updateBuild(){
+  const box=document.getElementById("buildBody");
+  if(!state.items.length){
+    box.innerHTML=`<div class="empty-state"><div class="empty-illu" aria-hidden="true"></div><p>Drop cabinets from the left to start your plan.</p></div>`;
+    return;
+  }
+  const rows=buildRows();
   let html=`<table class="build"><thead><tr><th>Qty</th><th>Item</th><th style="text-align:right">W&times;D&times;H</th></tr></thead><tbody>`;
   rows.forEach(r=>{
     html+=`<tr><td class="q">${r.qty}&times;</td><td>${r.name}<div class="legendline"><span class="swatch" style="background:${CAT[r.cat].fill}"></span>${CAT[r.cat].label}</div></td>
@@ -1778,8 +1858,29 @@ function updateBuild(){
   html+=`</tbody></table>`;
   const baseLF=state.items.filter(i=>i.cat==="base"||i.cat==="sink"||i.cat==="island").reduce((s,i)=>s+i.w,0)/12;
   html+=`<div class="metric" style="margin-top:10px"><span class="lab">Total pieces</span><span class="val">${state.items.filter(i=>i.cat!=="pin").length}</span></div>
-    <div class="metric"><span class="lab">Base linear feet</span><span class="val">${baseLF.toFixed(1)} ft</span></div>`;
+    <div class="metric"><span class="lab">Base linear feet</span><span class="val">${baseLF.toFixed(1)} ft</span></div>
+    <div class="build-actions"><button class="btn" type="button" id="btnCopyBuild">Copy list</button></div>`;
   box.innerHTML=html;
+  const copyBtn=box.querySelector("#btnCopyBuild");
+  if(copyBtn) copyBtn.onclick=()=>{
+    const text=buildListText();
+    if(!text){ toast("Build list is empty"); return; }
+    const done=()=>toast("Build list copied");
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(done).catch(()=>{
+        // fallback
+        try{
+          const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+          document.execCommand("copy");ta.remove();done();
+        }catch(_){ toast("Could not copy"); }
+      });
+    }else{
+      try{
+        const ta=document.createElement("textarea");ta.value=text;document.body.appendChild(ta);ta.select();
+        document.execCommand("copy");ta.remove();done();
+      }catch(_){ toast("Could not copy"); }
+    }
+  };
 }
 
 /* ==========================================================
@@ -1922,8 +2023,11 @@ document.getElementById("btnExport").onclick=()=>{
   a.click();URL.revokeObjectURL(a.href);
 };
 document.getElementById("btnImport").onclick=()=>document.getElementById("fileIn").click();
-document.getElementById("fileIn").onchange=e=>{
+document.getElementById("fileIn").onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
+  if(state.items.length && !(await confirmAsync("Open plan?","This replaces your current plan. Continue?","Open"))){
+    e.target.value=""; return;
+  }
   const rd=new FileReader();rd.onload=()=>{try{state=migrate(JSON.parse(rd.result));sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;view=state.view||"2d";autoFit=true;syncRoomInputs();syncPlanChrome();fit2D();commit();refreshUndoButtons();toast("Opened plan");}catch(err){alert("That file isn't a valid plan.");}};
   rd.readAsText(f);e.target.value="";
 };
@@ -1986,34 +2090,41 @@ function showCoach(){
 
 /* ---------- Print / PDF ---------- */
 document.getElementById("btnPrint").onclick=()=>{
+  document.body.dataset.printTitle = `${state.name||"Untitled kitchen"} · ${new Date().toLocaleDateString()}`;
   const prevView=view;
   view="2d";fit2D();draw2D();
-  const img=c2.toDataURL("image/png");
+  // Prefer native print of the live plan (uses @media print + title).
+  // Fallback: popup sheet if print is blocked or unavailable.
+  try{
+    window.print();
+  }catch(_){
+    const img=c2.toDataURL("image/png");
+    const rows=buildRows();
+    const B=bounds();
+    const win=window.open("","_blank");
+    if(win){
+      win.document.write(`<html><head><title>${document.body.dataset.printTitle}</title>
+        <style>
+          body{font-family:-apple-system,system-ui,sans-serif;color:#1c2429;margin:32px;}
+          h1{font-size:18px;margin:0 0 2px} .sub{color:#5c6772;font-size:12px;margin-bottom:18px}
+          img{max-width:100%;border:1px solid #d2d8de;border-radius:8px}
+          table{border-collapse:collapse;width:100%;margin-top:18px;font-size:12px}
+          th{text-align:left;border-bottom:2px solid #333;padding:6px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+          td{border-bottom:1px solid #ddd;padding:6px 4px;font-variant-numeric:tabular-nums}
+          td.r{text-align:right;font-family:ui-monospace,Menlo,monospace}
+        </style></head><body>
+        <h1>${document.body.dataset.printTitle}</h1>
+        <div class="sub">Room ${fmt(B.w)} &times; ${fmt(B.d)} &middot; drawn to scale</div>
+        <img src="${img}">
+        <table><thead><tr><th>Qty</th><th>Item</th><th style="text-align:right">W&times;D&times;H (in)</th></tr></thead><tbody>
+        ${rows.map(r=>`<tr><td>${r.qty}&times;</td><td>${r.name}</td><td class="r">${r.w} &times; ${r.d} &times; ${r.h}</td></tr>`).join("")}
+        </tbody></table>
+        <script>onload=()=>setTimeout(()=>print(),300)<\/script>
+        </body></html>`);
+      win.document.close();
+    }
+  }
   view=prevView;render();
-  const rows=[...new Map(state.items.filter(i=>i.cat!=="pin").map(i=>[`${i.name}|${i.w}x${i.d}x${i.h}`,i])).values()];
-  const counts={};
-  state.items.filter(i=>i.cat!=="pin").forEach(i=>{const k=`${i.name}|${i.w}x${i.d}x${i.h}`;counts[k]=(counts[k]||0)+1;});
-  const B=bounds();
-  const win=window.open("","_blank");
-  win.document.write(`<html><head><title>Kitchen Plan</title>
-    <style>
-      body{font-family:-apple-system,system-ui,sans-serif;color:#1c2429;margin:32px;}
-      h1{font-size:18px;margin:0 0 2px} .sub{color:#5c6772;font-size:12px;margin-bottom:18px}
-      img{max-width:100%;border:1px solid #d2d8de;border-radius:8px}
-      table{border-collapse:collapse;width:100%;margin-top:18px;font-size:12px}
-      th{text-align:left;border-bottom:2px solid #333;padding:6px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
-      td{border-bottom:1px solid #ddd;padding:6px 4px;font-variant-numeric:tabular-nums}
-      td.r{text-align:right;font-family:ui-monospace,Menlo,monospace}
-    </style></head><body>
-    <h1>Kitchen Remodel Plan</h1>
-    <div class="sub">Room ${fmt(B.w)} &times; ${fmt(B.d)} &middot; drawn to scale &middot; ${new Date().toLocaleDateString()}</div>
-    <img src="${img}">
-    <table><thead><tr><th>Qty</th><th>Item</th><th style="text-align:right">W&times;D&times;H (in)</th></tr></thead><tbody>
-    ${rows.map(r=>`<tr><td>${counts[`${r.name}|${r.w}x${r.d}x${r.h}`]}&times;</td><td>${r.name}</td><td class="r">${r.w} &times; ${r.d} &times; ${r.h}</td></tr>`).join("")}
-    </tbody></table>
-    <script>onload=()=>setTimeout(()=>print(),300)<\/script>
-    </body></html>`);
-  win.document.close();
 };
 
 /* ==========================================================
