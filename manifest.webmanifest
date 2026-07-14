@@ -1,0 +1,15 @@
+{
+  "name": "Kitchen Planner",
+  "short_name": "Kitchen Planner",
+  "description": "To-scale kitchen remodel planner for iPad",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#14181B",
+  "theme_color": "#14181B",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
