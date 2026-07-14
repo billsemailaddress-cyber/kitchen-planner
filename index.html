@@ -110,6 +110,18 @@
   .btn:disabled:hover{border-color:var(--border)}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
   .btn.ghost{background:transparent}
+  .plan-name{
+    background:transparent;border:0;border-bottom:1px solid var(--border);
+    color:var(--text);font:inherit;font-weight:600;font-size:13.5px;
+    max-width:160px;padding:4px 2px;min-height:var(--touch);
+  }
+  .plan-name:focus{outline:none;border-bottom-color:var(--accent)}
+  .mode-pill{
+    font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--accent);background:var(--accent-soft);padding:4px 8px;border-radius:20px;
+    white-space:nowrap;
+  }
+  select.btn{appearance:auto;padding-right:10px;max-width:148px}
 
   /* ---------- Body columns ---------- */
   .cols{display:grid;grid-template-columns:212px 1fr 288px;min-height:0}
@@ -134,6 +146,13 @@
   .pentools[hidden]{display:none}
   .pentools .ptlabel{font-size:11px;font-weight:650;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;padding:0 4px}
   .pentools .btn{padding:7px 12px}
+  .stage-actions{
+    position:absolute;left:50%;top:12px;transform:translateX(-50%);
+    display:flex;gap:8px;z-index:6;
+    background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:6px;box-shadow:var(--shadow);
+  }
+  .stage-actions[hidden]{display:none}
 
   /* Drawer toggles live in the top bar; only shown on narrow/touch layouts */
   .drawerToggle{display:none}
@@ -215,6 +234,19 @@
   .modal p{margin:0 0 14px;color:var(--muted);font-size:13px}
   .modal .row{display:flex;gap:8px;justify-content:flex-end}
 
+  .coach{
+    position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:45;
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .coach[hidden]{display:none}
+  .coach-card{
+    background:var(--panel);border:1px solid var(--border);border-radius:14px;
+    padding:18px;max-width:360px;width:100%;box-shadow:var(--shadow);
+  }
+  .coach-card h3{margin:0 0 8px;font-size:16px}
+  .coach-card p{margin:0 0 14px;color:var(--muted);font-size:13px;line-height:1.5}
+  .coach-card .row{display:flex;gap:8px;justify-content:flex-end}
+
   /* Touch / narrow layout (iPad portrait, phones): panels become drawers */
   @media (max-width:900px){
     .drawerToggle{display:inline-flex}
@@ -245,6 +277,21 @@
   <div class="topbar">
     <button class="btn drawerToggle" id="togglePalette" title="Show parts">Parts</button>
     <div class="brand"><h1>Kitchen Planner</h1><span class="tick">to&#8209;scale</span></div>
+    <input class="plan-name" id="planName" type="text" maxlength="60" aria-label="Plan name" value="Untitled kitchen">
+    <select id="finishTheme" class="btn" title="Cabinet finish theme" aria-label="Finish theme">
+      <option value="oak">Natural Oak</option>
+      <option value="shaker">White Shaker</option>
+      <option value="walnut">Walnut</option>
+      <option value="gray">Soft Gray</option>
+      <option value="navy">Navy</option>
+    </select>
+    <select id="roomPreset" class="btn" title="Room shape preset" aria-label="Room preset">
+      <option value="">Room shape…</option>
+      <option value="rect">Rectangle</option>
+      <option value="l">L-shape</option>
+      <option value="galley">Galley</option>
+      <option value="u">U-shape</option>
+    </select>
 
     <div class="tgroup">
       <span class="lbl">Room</span>
@@ -257,6 +304,7 @@
 
     <button class="btn" id="penBtn" title="Draw wall segments">Draw walls</button>
     <button class="btn" id="selectBtn" title="Select several pieces by dragging a box">Select</button>
+    <span class="mode-pill" id="modePill">Select</span>
     <div class="tgroup"><span class="lbl">Wall</span><div class="dimfield"><input class="n" id="wallTh" type="number" min="1" step="0.5" title="Default wall thickness"><span class="unit">in</span></div></div>
 
     <div class="seg" id="viewSeg">
@@ -285,6 +333,11 @@
     <div class="stage" id="stage">
       <canvas id="c2d"></canvas>
       <canvas id="c3d"></canvas>
+      <div class="stage-actions" id="stageActions" hidden>
+        <button class="btn" id="actRotate" type="button">Rotate</button>
+        <button class="btn" id="actDup" type="button">Duplicate</button>
+        <button class="btn danger" id="actDel" type="button">Delete</button>
+      </div>
       <div class="hint" id="hint">Click a cabinet in the left panel to drop it in &middot; drag to move &middot; R rotates &middot; Del removes</div>
       <div class="zoombar" id="zoombar">
         <button id="zin" title="Zoom in">+</button>
@@ -325,6 +378,16 @@
       <div class="row">
         <button class="btn ghost" id="confirmCancel">Cancel</button>
         <button class="btn primary" id="confirmOk">OK</button>
+      </div>
+    </div>
+  </div>
+  <div class="coach" id="coach" hidden>
+    <div class="coach-card">
+      <h3 id="coachTitle">Welcome</h3>
+      <p id="coachBody"></p>
+      <div class="row">
+        <button class="btn ghost" id="coachSkip">Skip</button>
+        <button class="btn primary" id="coachNext">Next</button>
       </div>
     </div>
   </div>
@@ -376,6 +439,8 @@ function rectWalls(w,d){return [
   {id:"w-left",  a:{x:0,y:d}, b:{x:0,y:0}},
 ];}
 const DEFAULT = ()=>({
+  name:"Untitled kitchen",
+  finishTheme:"oak",
   units:"ftin",
   room:{w:144,d:120},
   thickness:4.5,            // default wall thickness (inches)
@@ -391,6 +456,8 @@ const DEFAULT = ()=>({
 // bring older/saved plans up to the walls model
 function migrate(st){
   if(!st) return st;
+  if(!st.name) st.name="Untitled kitchen";
+  if(!st.finishTheme) st.finishTheme="oak";
   if(!st.room) st.room={w:144,d:120};
   if(st.thickness==null) st.thickness=4.5;
   if(!Array.isArray(st.walls)||!st.walls.length){
@@ -1228,6 +1295,8 @@ function setMode(m){
   const b=document.getElementById("penBtn");
   if(b){b.classList.toggle("primary",m==="pen");b.textContent=m==="pen"?"Done drawing":"Draw walls";}
   const sb=document.getElementById("selectBtn"); if(sb) sb.classList.toggle("primary",m==="marquee");
+  const pill=document.getElementById("modePill");
+  if(pill) pill.textContent = m==="pen" ? "Draw walls" : m==="marquee" ? "Box select" : "Select";
   const pt=document.getElementById("pentools"); if(pt) pt.hidden=(m!=="pen");
   c2.style.cursor = (m==="pen"||m==="marquee") ? "crosshair" : "default";
   document.getElementById("hint").textContent =
@@ -1290,7 +1359,7 @@ function snapClamp(it){const B=bounds(),f=footprint(it);it.x=clamp(it.x,B.x0+f.w
    SELECTION + RIGHT PANEL
 ========================================================== */
 // selecting a wall/opening (string id) or clearing; also clears item multi-select
-function select(id){sel=id;selIds.clear();updateProps();updateClear();maybeOpenDetails();}
+function select(id){sel=id;selIds.clear();updateProps();updateClear();maybeOpenDetails();updateStageActions();}
 // item selection (supports groups + additive toggle)
 function groupOf(id){const it=state.items.find(i=>i.id===id);return it&&it.groupId?state.items.filter(i=>i.groupId===it.groupId).map(i=>i.id):[id];}
 function selectItem(id,additive){
@@ -1300,13 +1369,25 @@ function selectItem(id,additive){
     const allIn=members.every(m=>selIds.has(m));
     members.forEach(m=>allIn?selIds.delete(m):selIds.add(m));
   }else selIds=new Set(members);
-  updateProps();updateClear();maybeOpenDetails();
+  updateProps();updateClear();maybeOpenDetails();updateStageActions();
 }
 function selectItemsInBox(bx){
   const l=Math.min(bx.x0,bx.x1),r=Math.max(bx.x0,bx.x1),t=Math.min(bx.y0,bx.y1),b=Math.max(bx.y0,bx.y1);
   sel=null;selIds=new Set();
   state.items.forEach(it=>{const a=aabb(it); if(a.l<r&&a.r>l&&a.t<b&&a.b>t) groupOf(it.id).forEach(m=>selIds.add(m));});
-  updateProps();updateClear();maybeOpenDetails();
+  updateProps();updateClear();maybeOpenDetails();updateStageActions();
+}
+function updateStageActions(){
+  const bar=document.getElementById("stageActions");
+  if(!bar) return;
+  const show=!!(sel || selIds.size);
+  bar.hidden=!show;
+  // Rotate/Dup only apply to item multi-select
+  const hasItems=selIds.size>0;
+  const rot=document.getElementById("actRotate");
+  const dup=document.getElementById("actDup");
+  if(rot) rot.hidden=!hasItems;
+  if(dup) dup.hidden=!hasItems;
 }
 function selItemsArr(){return [...selIds].map(id=>state.items.find(i=>i.id===id)).filter(Boolean);}
 function selBBox(){let l=1e9,t=1e9,r=-1e9,b=-1e9;selItemsArr().forEach(it=>{const a=aabb(it);l=Math.min(l,a.l);t=Math.min(t,a.t);r=Math.max(r,a.r);b=Math.max(b,a.b);});return{l,t,r,b,cx:(l+r)/2,cy:(t+b)/2};}
@@ -1351,6 +1432,7 @@ function maybeOpenDetails(){
     document.body.classList.add("insp-open"), document.body.classList.remove("pal-open");
 }
 function updateProps(){
+  updateStageActions();
   const empty=document.getElementById("propEmpty"),body=document.getElementById("propBody");
   if(!sel && !selIds.size){empty.hidden=false;body.hidden=true;return;}
   empty.hidden=true;body.hidden=false;
@@ -1603,6 +1685,45 @@ function syncRoomInputs(){
   document.getElementById("roomDin").value=Math.round(R.d%12);
   document.getElementById("wallTh").value=state.thickness;
 }
+function syncPlanChrome(){
+  const nameEl=document.getElementById("planName");
+  if(nameEl) nameEl.value=state.name||"Untitled kitchen";
+  const fin=document.getElementById("finishTheme");
+  if(fin) fin.value=state.finishTheme||"oak";
+}
+function applyRoomPreset(kind){
+  if(kind==="rect"){
+    state.room={w:144,d:120};
+    state.walls=rectWalls(144,120);
+  }else if(kind==="l"){
+    // outer 14' x 12' L: full rect walls minus inner cut — represent as polyline walls
+    const W=168, D=144, cutW=84, cutD=72;
+    state.room={w:W,d:D};
+    state.walls=[
+      {id:uid(),a:{x:0,y:0},b:{x:W,y:0}},
+      {id:uid(),a:{x:W,y:0},b:{x:W,y:cutD}},
+      {id:uid(),a:{x:W,y:cutD},b:{x:cutW,y:cutD}},
+      {id:uid(),a:{x:cutW,y:cutD},b:{x:cutW,y:D}},
+      {id:uid(),a:{x:cutW,y:D},b:{x:0,y:D}},
+      {id:uid(),a:{x:0,y:D},b:{x:0,y:0}},
+    ];
+  }else if(kind==="galley"){
+    state.room={w:120,d:96};
+    state.walls=rectWalls(120,96);
+  }else if(kind==="u"){
+    const W=156, D=132, open=60;
+    state.room={w:W,d:D};
+    state.walls=[
+      {id:uid(),a:{x:0,y:0},b:{x:W,y:0}},
+      {id:uid(),a:{x:W,y:0},b:{x:W,y:D}},
+      {id:uid(),a:{x:W,y:D},b:{x:(W+open)/2,y:D}},
+      {id:uid(),a:{x:(W-open)/2,y:D},b:{x:0,y:D}},
+      {id:uid(),a:{x:0,y:D},b:{x:0,y:0}},
+    ];
+  }else return;
+  state.openings=[];
+  autoFit=true; fit2D(); commit(); syncRoomInputs(); toast("Room shape applied");
+}
 // Editing W×D rebuilds the 4 named rectangle walls to that size,
 // leaving any pen-drawn walls untouched.
 function readRoomInputs(){
@@ -1648,20 +1769,78 @@ document.getElementById("zin").onclick=()=>{autoFit=false;z2.scale=clamp(z2.scal
 document.getElementById("zout").onclick=()=>{autoFit=false;z2.scale=clamp(z2.scale*0.87,0.15,20);draw2D();};
 document.getElementById("btnReset").addEventListener("click", async ()=>{
   if(!(await confirmAsync("Reset plan?","This clears the room, cabinets, and openings. This cannot be undone from history after reset.","Reset"))) return;
-  state=DEFAULT();sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;penPts=[];penCursor=null;setMode("select");autoFit=true;syncRoomInputs();fit2D();commit();refreshUndoButtons();
+  state=DEFAULT();sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;penPts=[];penCursor=null;setMode("select");autoFit=true;syncRoomInputs();syncPlanChrome();fit2D();commit();refreshUndoButtons();
   toast("Plan reset");
 });
 document.getElementById("btnExport").onclick=()=>{
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
-  a.download="kitchen-plan.json";a.click();URL.revokeObjectURL(a.href);
+  a.download=`${(state.name||"kitchen-plan").replace(/[^\w\- ]+/g,"_").trim()||"kitchen-plan"}.json`;
+  a.click();URL.revokeObjectURL(a.href);
 };
 document.getElementById("btnImport").onclick=()=>document.getElementById("fileIn").click();
 document.getElementById("fileIn").onchange=e=>{
   const f=e.target.files[0];if(!f)return;
-  const rd=new FileReader();rd.onload=()=>{try{state=migrate(JSON.parse(rd.result));sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;view=state.view||"2d";autoFit=true;syncRoomInputs();fit2D();commit();refreshUndoButtons();}catch(err){alert("That file isn't a valid plan.");}};
+  const rd=new FileReader();rd.onload=()=>{try{state=migrate(JSON.parse(rd.result));sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;view=state.view||"2d";autoFit=true;syncRoomInputs();syncPlanChrome();fit2D();commit();refreshUndoButtons();toast("Opened plan");}catch(err){alert("That file isn't a valid plan.");}};
   rd.readAsText(f);e.target.value="";
 };
+
+document.getElementById("planName").value = state.name || "Untitled kitchen";
+document.getElementById("planName").addEventListener("change", (e)=>{
+  state.name = (e.target.value || "Untitled kitchen").slice(0,60);
+  e.target.value = state.name;
+  save(); toast("Plan renamed");
+});
+document.getElementById("finishTheme").value = state.finishTheme || "oak";
+document.getElementById("finishTheme").addEventListener("change", (e)=>{
+  state.finishTheme = e.target.value || "oak";
+  save();
+});
+document.getElementById("roomPreset").addEventListener("change", async (e)=>{
+  const v=e.target.value; if(!v) return;
+  if(state.items.length && !(await confirmAsync("Change room shape?","Cabinets stay in place; walls rebuild. You can undo.","Apply"))){ e.target.value=""; return; }
+  applyRoomPreset(v); e.target.value="";
+});
+document.getElementById("actRotate").onclick=()=>rotateSelection();
+document.getElementById("actDup").onclick=()=>duplicateSelection();
+document.getElementById("actDel").onclick=async ()=>{
+  if(selIds.size>1){
+    if(!(await confirmAsync("Delete selection?",`${selIds.size} pieces will be removed.`,"Delete"))) return;
+    deleteSelection(); return;
+  }
+  if(selIds.size){ deleteSelection(); return; }
+  if(sel) deleteSel();
+};
+
+/* ---------- First-run coach ---------- */
+const COACH_STEPS=[
+  {title:"Add a piece", body:"Tap a cabinet size on the left to drop it into the plan."},
+  {title:"Move & rotate", body:"Drag to move. Use Rotate on the top of the plan (or R on a keyboard)."},
+  {title:"Review the plan", body:"Check the work triangle and build list on the right (Details on narrow screens)."},
+];
+function dismissCoach(){
+  try{localStorage.setItem("kitchenCoach_v1","1");}catch(_){}
+  const el=document.getElementById("coach"); if(el) el.hidden=true;
+}
+function showCoach(){
+  if(localStorage.getItem("kitchenCoach_v1")) return;
+  const el=document.getElementById("coach");
+  if(!el) return;
+  let i=0;
+  const title=document.getElementById("coachTitle");
+  const body=document.getElementById("coachBody");
+  const next=document.getElementById("coachNext");
+  const paint=()=>{
+    const s=COACH_STEPS[i];
+    title.textContent=s.title;
+    body.textContent=s.body;
+    next.textContent=i===COACH_STEPS.length-1?"Got it":"Next";
+  };
+  paint();
+  el.hidden=false;
+  document.getElementById("coachSkip").onclick=dismissCoach;
+  next.onclick=()=>{ if(i>=COACH_STEPS.length-1) dismissCoach(); else { i++; paint(); } };
+}
 
 /* ---------- Print / PDF ---------- */
 document.getElementById("btnPrint").onclick=()=>{
@@ -1702,6 +1881,7 @@ function boot(){
   readCSS();
   buildPalette();
   syncRoomInputs();
+  syncPlanChrome();
   document.getElementById("stage").classList.toggle("show3d",view==="3d");
   const seg=document.getElementById("viewSeg");
   [...seg.children].forEach(x=>x.classList.toggle("on",x.dataset.view===view));
@@ -1712,6 +1892,8 @@ function boot(){
   setMode("select");
   fit2D();
   commit();
+  updateStageActions();
+  showCoach();
 }
 const mo=new MutationObserver(()=>{readCSS();render();});
 mo.observe(document.documentElement,{attributes:true,attributeFilter:["data-theme"]});
