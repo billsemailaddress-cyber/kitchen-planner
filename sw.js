@@ -1,4 +1,4 @@
-const CACHE = "kitchen-planner-v1";
+const CACHE = "kitchen-planner-v2";
 const ASSETS = [
   "./",
   "./index.html",
