@@ -412,6 +412,33 @@ const CAT = {
   pin:       {label:"Utility pin",   fill:"#B94F3B", h:0,   z:0,  d:0},
 };
 
+// ---- finish themes (cabinet / counter colors) ----
+const FINISH = {
+  oak:    {base:"#C6893F",wall:"#E0C088",tall:"#8A5A34",appliance:"#7E8C99",sink:"#5B8CA6",island:"#B9762F",counter:"#E8E2D6"},
+  shaker: {base:"#F2F0EB",wall:"#FAF8F5",tall:"#E7E2D9",appliance:"#8A939C",sink:"#6B8FA8",island:"#EDE9E1",counter:"#FFFFFF"},
+  walnut: {base:"#6B3F2A",wall:"#8B5A3C",tall:"#4A2C1A",appliance:"#6E7780",sink:"#4F738A",island:"#5C3422",counter:"#D9CDB8"},
+  gray:   {base:"#9AA3AD",wall:"#C5CCD3",tall:"#6F7882",appliance:"#7A828A",sink:"#6A8FA3",island:"#8B949E",counter:"#E6E9EC"},
+  navy:   {base:"#2F4A6E",wall:"#5B7A9D",tall:"#1E334F",appliance:"#6B7280",sink:"#3D6F8C",island:"#35567A",counter:"#E8E4DC"},
+};
+function applyFinishTheme(key){
+  const k=FINISH[key]?key:"oak";
+  const t=FINISH[k];
+  state.finishTheme=k;
+  CAT.base.fill=t.base; CAT.wall.fill=t.wall; CAT.tall.fill=t.tall;
+  CAT.appliance.fill=t.appliance; CAT.sink.fill=t.sink; CAT.island.fill=t.island;
+  const r=document.documentElement;
+  r.style.setProperty("--finish-base",t.base);
+  r.style.setProperty("--finish-wall",t.wall);
+  r.style.setProperty("--finish-tall",t.tall);
+  r.style.setProperty("--finish-appliance",t.appliance);
+  r.style.setProperty("--finish-sink",t.sink);
+  r.style.setProperty("--finish-island",t.island);
+  r.style.setProperty("--finish-counter",t.counter);
+  const sel=document.getElementById("finishTheme");
+  if(sel) sel.value=k;
+  buildPalette(); render(); updateBuild();
+}
+
 // ---- inventory library ----
 const LIB = {
   base:[9,12,15,18,21,24,27,30,33,36],
@@ -708,6 +735,8 @@ function draw2D(){
   // items (base/tall first, then overhead so uppers read on top)
   [...state.items].sort((a,b)=>rank(a)-rank(b)).forEach(drawItem);
 
+  drawSnapGuides();
+  drawWorkTriangle();
   drawIslands();
   drawWalls();
   drawOpenings();
@@ -716,6 +745,45 @@ function draw2D(){
   drawSelectionOverlay();
 
   if(selIds.size===1){ const it=selItemsArr()[0]; if(it) drawMeasure(it); }
+}
+function drawSnapGuides(){
+  const guides=window._guides;
+  if(!guides||!guides.length){ window._guides=[]; return; }
+  g2.save();
+  g2.strokeStyle=CSS["--accent"]; g2.lineWidth=1; g2.setLineDash([4,4]); g2.globalAlpha=.75;
+  guides.forEach(g=>{ g2.beginPath(); g2.moveTo(X(g.x1),Y(g.y1)); g2.lineTo(X(g.x2),Y(g.y2)); g2.stroke(); });
+  g2.restore();
+  window._guides=[];
+}
+function drawWorkTriangle(){
+  const sink=centerOf(i=>i.cat==="sink"||/sink/i.test(i.name));
+  const range=centerOf(i=>/range|cooktop/i.test(i.name));
+  const fridge=centerOf(i=>/refriger|fridge/i.test(i.name));
+  if(!sink||!range||!fridge) return;
+  const pts=[sink,range,fridge];
+  g2.save();
+  g2.beginPath();
+  g2.moveTo(X(sink.x),Y(sink.y));
+  g2.lineTo(X(range.x),Y(range.y));
+  g2.lineTo(X(fridge.x),Y(fridge.y));
+  g2.closePath();
+  g2.fillStyle=CSS["--accent"]; g2.globalAlpha=.12; g2.fill();
+  g2.globalAlpha=.55; g2.strokeStyle=CSS["--accent"]; g2.lineWidth=1.5; g2.setLineDash([6,4]); g2.stroke();
+  g2.setLineDash([]);
+  g2.globalAlpha=.95; g2.font="10px var(--mono)"; g2.textAlign="center"; g2.textBaseline="middle";
+  const edge=(a,b)=>{
+    const ft=Math.hypot(a.x-b.x,a.y-b.y)/12;
+    const mx=X((a.x+b.x)/2), my=Y((a.y+b.y)/2);
+    const txt=ft.toFixed(1)+"'";
+    const tw=g2.measureText(txt).width;
+    g2.fillStyle=CSS["--panel"]; g2.fillRect(mx-tw/2-3,my-7,tw+6,14);
+    g2.strokeStyle=CSS["--accent"]; g2.lineWidth=1; g2.strokeRect(mx-tw/2-3,my-7,tw+6,14);
+    g2.fillStyle=CSS["--accent"]; g2.fillText(txt,mx,my);
+  };
+  edge(sink,range); edge(range,fridge); edge(fridge,sink);
+  g2.fillStyle=CSS["--accent"]; g2.globalAlpha=.85;
+  pts.forEach(p=>{ g2.beginPath(); g2.arc(X(p.x),Y(p.y),3.5,0,7); g2.fill(); });
+  g2.restore();
 }
 // faint outline + name around each island (group), so groupings are visible
 function drawIslands(){
@@ -797,25 +865,84 @@ function textColorOn(fill){
   const r=parseInt(c.slice(0,2),16),gg=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
   return (0.299*r+0.587*gg+0.114*b) > 150 ? "#20262B" : "#F4F6F8";
 }
+function frontSide(it){
+  const a=aabb(it), B=bounds();
+  const gaps={t:a.t-B.y0,b:B.y1-a.b,l:a.l-B.x0,r:B.x1-a.r};
+  return Object.keys(gaps).reduce((m,k)=>gaps[k]>gaps[m]?k:m,"t");
+}
 function drawItem(it){
   const a=aabb(it);
   const px=X(a.l),py=Y(a.t),pw=a.w*z2.scale,ph=a.d*z2.scale;
   const c=CAT[it.cat];
+  const isSel=selIds.has(it.id);
+  const dimmed=selIds.size>0 && !isSel;
 
   if(it.cat==="pin"){
+    g2.save();
+    if(dimmed) g2.globalAlpha=0.72;
     const cx=X(it.x),cy=Y(it.y);
     g2.fillStyle=c.fill;g2.beginPath();g2.arc(cx,cy,7,0,7);g2.fill();
     g2.strokeStyle=CSS["--panel"];g2.lineWidth=2;g2.stroke();
     g2.fillStyle=CSS["--text"];g2.font="600 11px var(--font)";g2.textAlign="left";g2.textBaseline="middle";
     g2.fillText(it.name,cx+11,cy);
-    if(selIds.has(it.id)){g2.strokeStyle=CSS["--accent"];g2.lineWidth=2;g2.beginPath();g2.arc(cx,cy,10,0,7);g2.stroke();}
+    g2.restore();
+    if(isSel){g2.strokeStyle=CSS["--accent"];g2.lineWidth=2.5;g2.shadowColor="rgba(62,124,177,.45)";g2.shadowBlur=8;g2.beginPath();g2.arc(cx,cy,10,0,7);g2.stroke();g2.shadowBlur=0;}
     return;
   }
 
+  g2.save();
+  let baseA=c.overhead?0.9:1;
+  if(dimmed) baseA*=0.72;
+  g2.globalAlpha=baseA;
+
   g2.fillStyle=c.fill;
-  g2.globalAlpha = c.overhead?0.9:1;
   roundRect(px,py,pw,ph,2); g2.fill();
-  g2.globalAlpha=1;
+
+  // countertop strip (1.5") along front edge for base / sink / island
+  if(it.cat==="base"||it.cat==="sink"||it.cat==="island"){
+    const side=frontSide(it);
+    const strip=1.5*z2.scale;
+    const counter=(FINISH[state.finishTheme]||FINISH.oak).counter;
+    g2.fillStyle=counter;
+    if(side==="t") g2.fillRect(px,py,pw,Math.min(strip,ph));
+    else if(side==="b") g2.fillRect(px,py+ph-Math.min(strip,ph),pw,Math.min(strip,ph));
+    else if(side==="l") g2.fillRect(px,py,Math.min(strip,pw),ph);
+    else if(side==="r") g2.fillRect(px+pw-Math.min(strip,pw),py,Math.min(strip,pw),ph);
+  }
+
+  // base: vertical door split at center when wide enough
+  if(it.cat==="base" && it.w>=24){
+    g2.strokeStyle="rgba(0,0,0,.28)"; g2.lineWidth=1;
+    g2.beginPath();
+    if(it.rot===90||it.rot===270){ g2.moveTo(px,py+ph/2); g2.lineTo(px+pw,py+ph/2); }
+    else { g2.moveTo(px+pw/2,py); g2.lineTo(px+pw/2,py+ph); }
+    g2.stroke();
+  }
+
+  // sink: basin ellipse
+  if(it.cat==="sink"){
+    const insetX=Math.max(2,pw*0.18), insetY=Math.max(2,ph*0.18);
+    g2.fillStyle="rgba(30,60,90,.22)"; g2.strokeStyle="rgba(0,0,0,.28)"; g2.lineWidth=1;
+    g2.beginPath();
+    g2.ellipse(px+pw/2,py+ph/2,Math.max(2,pw/2-insetX),Math.max(2,ph/2-insetY),0,0,Math.PI*2);
+    g2.fill(); g2.stroke();
+  }
+
+  // range / cooktop: four burners
+  if(it.cat==="appliance" && /range|cooktop/i.test(it.name)){
+    const r=Math.max(2,Math.min(pw,ph)*0.11);
+    const pads=[[0.3,0.3],[0.7,0.3],[0.3,0.7],[0.7,0.7]];
+    g2.fillStyle="rgba(0,0,0,.14)"; g2.strokeStyle="rgba(0,0,0,.4)"; g2.lineWidth=1;
+    pads.forEach(([fx,fy])=>{
+      g2.beginPath(); g2.arc(px+pw*fx,py+ph*fy,r,0,Math.PI*2); g2.fill(); g2.stroke();
+    });
+  }
+
+  // fridge: horizontal mid line
+  if(it.cat==="appliance" && /refriger|fridge/i.test(it.name)){
+    g2.strokeStyle="rgba(0,0,0,.35)"; g2.lineWidth=1.2;
+    g2.beginPath(); g2.moveTo(px+3,py+ph/2); g2.lineTo(px+pw-3,py+ph/2); g2.stroke();
+  }
 
   // overhead cabinets: dashed outline + hatch so they read as "above counter"
   if(c.overhead){
@@ -830,9 +957,7 @@ function drawItem(it){
   g2.setLineDash([]);
 
   // "front" edge indicator for cabinets (counter face)
-  if(it.cat!=="appliance"||true){
-    drawFrontEdge(it,px,py,pw,ph);
-  }
+  drawFrontEdge(it,px,py,pw,ph);
 
   // label if room allows
   const ink=textColorOn(c.fill);
@@ -840,31 +965,32 @@ function drawItem(it){
     g2.fillStyle=ink;g2.textAlign="center";g2.textBaseline="middle";
     g2.font="600 11px var(--font)";
     g2.fillText(it.name, px+pw/2, py+ph/2-6);
-    g2.font="11px var(--mono)";g2.globalAlpha=.85;
+    g2.font="11px var(--mono)";g2.globalAlpha=baseA*.85;
     g2.fillText(`${fmtShort(it.w)}\u00D7${fmtShort(it.d)}`, px+pw/2, py+ph/2+7);
-    g2.globalAlpha=1;
+    g2.globalAlpha=baseA;
   }
+  g2.restore();
 
-  if(selIds.has(it.id)){
-    g2.strokeStyle=CSS["--accent"];g2.lineWidth=2.4;
+  if(isSel){
+    g2.save();
+    g2.shadowColor="rgba(62,124,177,.5)"; g2.shadowBlur=10;
+    g2.strokeStyle=CSS["--accent"];g2.lineWidth=2.5;
     roundRect(px-1,py-1,pw+2,ph+2,3);g2.stroke();
+    g2.restore();
   }
 }
 function drawFrontEdge(it,px,py,pw,ph){
   // draw a subtle thicker line on the "front" (the face away from nearest wall for base/counter)
-  const a=aabb(it);
-  let side="b";
-  const B=bounds();
-  const gaps={t:a.t-B.y0,b:B.y1-a.b,l:a.l-B.x0,r:B.x1-a.r};
-  // front = side with the LARGEST gap (opens into the room)
-  side=Object.keys(gaps).reduce((m,k)=>gaps[k]>gaps[m]?k:m,"t");
-  g2.strokeStyle=CSS["--accent"];g2.globalAlpha=.55;g2.lineWidth=2;
+  const side=frontSide(it);
+  g2.save();
+  g2.strokeStyle=CSS["--accent"];g2.globalAlpha*=.55;g2.lineWidth=2;
   g2.beginPath();
   if(side==="t"){g2.moveTo(px,py);g2.lineTo(px+pw,py);}
   if(side==="b"){g2.moveTo(px,py+ph);g2.lineTo(px+pw,py+ph);}
   if(side==="l"){g2.moveTo(px,py);g2.lineTo(px,py+ph);}
   if(side==="r"){g2.moveTo(px+pw,py);g2.lineTo(px+pw,py+ph);}
-  g2.stroke();g2.globalAlpha=1;
+  g2.stroke();
+  g2.restore();
 }
 function roundRect(x,y,w,h,r){
   r=Math.min(r,Math.abs(w)/2,Math.abs(h)/2);
@@ -989,8 +1115,8 @@ function draw3D(){
   const T=p=>({x:ox+p.sx*s,y:oy+p.sy*s,depth:p.depth});
 
   const faces=[]; // {pts:[{x,y}], depth, fill, stroke}
-  // floor
-  faces.push({pts:corners.map(c=>T(P(c.x,c.y,0))),depth:-1e6,fill:CSS["--panel"],stroke:CSS["--border"],alpha:.5});
+  // floor — slightly warmer than panel
+  faces.push({pts:corners.map(c=>T(P(c.x,c.y,0))),depth:-1e6,fill:warmFloor(CSS["--panel"]),stroke:CSS["--border"],alpha:.55});
 
   // floor grid
   const gridLines=[];
@@ -1013,7 +1139,9 @@ function draw3D(){
     ].map(T);
     const base=CAT[it.cat].fill;
     const mk=(idx,f)=>({pts:idx.map(i=>V[i]),depth:avg(idx.map(i=>V[i].depth)),fill:tint(base,f),stroke:"rgba(0,0,0,.28)",selId:it.id});
-    faces.push(mk([4,5,6,7],shade.top));
+    // lighter top face reads as countertop for base / sink / island
+    const topF=(it.cat==="base"||it.cat==="sink"||it.cat==="island")?1.15:shade.top;
+    faces.push(mk([4,5,6,7],topF));
     faces.push(mk([0,1,5,4],shade.north));
     faces.push(mk([3,2,6,7],shade.south));
     faces.push(mk([0,3,7,4],shade.west));
@@ -1052,6 +1180,13 @@ function tint(hex,f){
   const c=hex.replace("#","");
   let r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
   r=Math.round(clamp(r*f,0,255));g=Math.round(clamp(g*f,0,255));b=Math.round(clamp(b*f,0,255));
+  return `rgb(${r},${g},${b})`;
+}
+function warmFloor(hex){
+  const c=(hex||"").replace("#","");
+  if(c.length!==6) return hex||"#E8E0D4";
+  let r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),b=parseInt(c.slice(4,6),16);
+  r=Math.round(clamp(r+10,0,255)); g=Math.round(clamp(g+5,0,255)); b=Math.round(clamp(b-6,0,255));
   return `rgb(${r},${g},${b})`;
 }
 let cam3fit=1;
@@ -1190,26 +1325,35 @@ c2.addEventListener("wheel",e=>{
 
 function snapItem(it,ignore){
   const B=bounds(),f=footprint(it),SN=4,GS=1;
+  window._guides=[];
+  const pushV=x=>window._guides.push({x1:x,y1:B.y0,x2:x,y2:B.y1});
+  const pushH=y=>window._guides.push({x1:B.x0,y1:y,x2:B.x1,y2:y});
   let l=it.x-f.w/2,t=it.y-f.d/2,rr=it.x+f.w/2,bb=it.y+f.d/2;
   // snap edges to axis-aligned walls
   state.walls.forEach(w=>{
     const vert=Math.abs(w.a.x-w.b.x)<0.5, horiz=Math.abs(w.a.y-w.b.y)<0.5;
     if(vert){const wx=w.a.x,y0=Math.min(w.a.y,w.b.y),y1=Math.max(w.a.y,w.b.y);
-      if(overlap(t,bb,y0,y1)){ if(Math.abs(l-wx)<SN)it.x=wx+f.w/2; else if(Math.abs(rr-wx)<SN)it.x=wx-f.w/2; }}
+      if(overlap(t,bb,y0,y1)){
+        if(Math.abs(l-wx)<SN){it.x=wx+f.w/2;pushV(wx);}
+        else if(Math.abs(rr-wx)<SN){it.x=wx-f.w/2;pushV(wx);}
+      }}
     if(horiz){const wy=w.a.y,x0=Math.min(w.a.x,w.b.x),x1=Math.max(w.a.x,w.b.x);
-      if(overlap(l,rr,x0,x1)){ if(Math.abs(t-wy)<SN)it.y=wy+f.d/2; else if(Math.abs(bb-wy)<SN)it.y=wy-f.d/2; }}
+      if(overlap(l,rr,x0,x1)){
+        if(Math.abs(t-wy)<SN){it.y=wy+f.d/2;pushH(wy);}
+        else if(Math.abs(bb-wy)<SN){it.y=wy-f.d/2;pushH(wy);}
+      }}
   });
   // neighbor edges (butt joints) — skip other pieces moving with this one
   l=it.x-f.w/2;t=it.y-f.d/2;rr=it.x+f.w/2;bb=it.y+f.d/2;
   state.items.forEach(o=>{
     if(o.id===it.id||o.cat==="pin"||(ignore&&ignore.has(o.id)))return;const a=aabb(o);
     if(Math.abs(t-a.t)<SN&&overlap(l,rr,a.l,a.r)){
-      if(Math.abs(rr-a.l)<SN)it.x=a.l-f.w/2;
-      if(Math.abs(l-a.r)<SN)it.x=a.r+f.w/2;
+      if(Math.abs(rr-a.l)<SN){it.x=a.l-f.w/2;pushV(a.l);}
+      if(Math.abs(l-a.r)<SN){it.x=a.r+f.w/2;pushV(a.r);}
     }
     if(Math.abs(l-a.l)<SN&&overlap(t,bb,a.t,a.b)){
-      if(Math.abs(bb-a.t)<SN)it.y=a.t-f.d/2;
-      if(Math.abs(t-a.b)<SN)it.y=a.b+f.d/2;
+      if(Math.abs(bb-a.t)<SN){it.y=a.t-f.d/2;pushH(a.t);}
+      if(Math.abs(t-a.b)<SN){it.y=a.b+f.d/2;pushH(a.b);}
     }
   });
   // grid + keep within the room's bounding area
@@ -1688,8 +1832,7 @@ function syncRoomInputs(){
 function syncPlanChrome(){
   const nameEl=document.getElementById("planName");
   if(nameEl) nameEl.value=state.name||"Untitled kitchen";
-  const fin=document.getElementById("finishTheme");
-  if(fin) fin.value=state.finishTheme||"oak";
+  applyFinishTheme(state.finishTheme||"oak");
 }
 function applyRoomPreset(kind){
   if(kind==="rect"){
@@ -1791,10 +1934,9 @@ document.getElementById("planName").addEventListener("change", (e)=>{
   e.target.value = state.name;
   save(); toast("Plan renamed");
 });
-document.getElementById("finishTheme").value = state.finishTheme || "oak";
 document.getElementById("finishTheme").addEventListener("change", (e)=>{
-  state.finishTheme = e.target.value || "oak";
-  save();
+  applyFinishTheme(e.target.value || "oak");
+  commit();
 });
 document.getElementById("roomPreset").addEventListener("change", async (e)=>{
   const v=e.target.value; if(!v) return;
@@ -1879,9 +2021,8 @@ document.getElementById("btnPrint").onclick=()=>{
 ========================================================== */
 function boot(){
   readCSS();
-  buildPalette();
   syncRoomInputs();
-  syncPlanChrome();
+  syncPlanChrome(); // applyFinishTheme + plan name (also buildPalette)
   document.getElementById("stage").classList.toggle("show3d",view==="3d");
   const seg=document.getElementById("viewSeg");
   [...seg.children].forEach(x=>x.classList.toggle("on",x.dataset.view===view));
