@@ -22,6 +22,21 @@
     --shadow:0 1px 2px rgba(20,30,40,.06),0 6px 20px rgba(20,30,40,.08);
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
     --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --radius:10px;
+    --radius-sm:7px;
+    --touch:44px;
+    --pad-safe-t:env(safe-area-inset-top,0px);
+    --pad-safe-b:env(safe-area-inset-bottom,0px);
+    --pad-safe-l:env(safe-area-inset-left,0px);
+    --pad-safe-r:env(safe-area-inset-right,0px);
+    --font-ui: -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;
+    --finish-base:#C6893F;
+    --finish-wall:#E0C088;
+    --finish-tall:#8A5A34;
+    --finish-appliance:#7E8C99;
+    --finish-sink:#5B8CA6;
+    --finish-island:#B9762F;
+    --finish-counter:#E8E2D6;
   }
   @media (prefers-color-scheme:dark){
     :root{
@@ -53,9 +68,10 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0;background:var(--bg);color:var(--text);font-family:var(--font);
+    margin:0;background:var(--bg);color:var(--text);font-family:var(--font-ui);
     font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;
     overflow:hidden;
+    padding: var(--pad-safe-t) var(--pad-safe-r) var(--pad-safe-b) var(--pad-safe-l);
   }
   .num{font-family:var(--mono);font-variant-numeric:tabular-nums}
   button{font-family:inherit;color:inherit;cursor:pointer}
@@ -66,8 +82,8 @@
   /* ---------- App shell ---------- */
   .app{display:grid;grid-template-rows:auto 1fr;height:100vh}
   .topbar{
-    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-    padding:9px 14px;background:var(--surface);border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);
     box-shadow:var(--shadow);z-index:5;
   }
   .brand{display:flex;align-items:baseline;gap:9px;margin-right:4px}
@@ -86,8 +102,8 @@
   .seg button.on{background:var(--accent);color:var(--accent-ink)}
   .spacer{flex:1}
   .btn{
-    background:var(--panel);border:1px solid var(--border);border-radius:7px;
-    padding:6px 11px;font-size:12.5px;font-weight:550;color:var(--text);display:inline-flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:8px 14px;font-size:12.5px;font-weight:550;color:var(--text);display:inline-flex;align-items:center;gap:6px;
   }
   .btn:hover{border-color:var(--accent)}
   .btn:disabled{opacity:.4;cursor:default}
@@ -125,14 +141,19 @@
   /* ---------- Palette (left) ---------- */
   .grp{padding:12px 12px 4px}
   .grp h2{
-    font-size:10.5px;text-transform:uppercase;letter-spacing:.11em;color:var(--muted);
+    font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);
     margin:0 0 8px;font-weight:700;display:flex;align-items:center;gap:7px;
+  }
+  .side .grp h2{ letter-spacing:.12em; }
+  .btn,.chip,.zoombar button,.drawerToggle{
+    min-height:var(--touch);
+    min-width:var(--touch);
   }
   .swatch{width:10px;height:10px;border-radius:3px;flex:none}
   .chips{display:flex;flex-wrap:wrap;gap:6px}
   .chip{
-    background:var(--panel);border:1px solid var(--border);border-radius:7px;
-    padding:5px 8px;font-size:12px;font-weight:550;display:flex;align-items:center;gap:6px;
+    background:var(--panel);border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:8px 12px;font-size:12px;font-weight:550;display:flex;align-items:center;gap:6px;
   }
   .chip:hover{border-color:var(--accent);color:var(--accent)}
   .chip .num{font-size:11px;color:var(--muted)}
@@ -184,8 +205,18 @@
 
   .scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:20;display:none}
 
+  .toast-host{position:fixed;left:50%;bottom:calc(24px + var(--pad-safe-b));transform:translateX(-50%);z-index:50;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{background:var(--panel);border:1px solid var(--border);box-shadow:var(--shadow);padding:10px 16px;border-radius:10px;font-size:13px;opacity:0;transition:opacity .2s}
+  .toast.show{opacity:1}
+  .modal-scrim{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:40;display:none;align-items:center;justify-content:center;padding:20px}
+  .modal-scrim.open{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;max-width:360px;width:100%;box-shadow:var(--shadow)}
+  .modal h3{margin:0 0 8px;font-size:16px}
+  .modal p{margin:0 0 14px;color:var(--muted);font-size:13px}
+  .modal .row{display:flex;gap:8px;justify-content:flex-end}
+
   /* Touch / narrow layout (iPad portrait, phones): panels become drawers */
-  @media (max-width:860px){
+  @media (max-width:900px){
     .drawerToggle{display:inline-flex}
     .cols{grid-template-columns:1fr}
     .side{position:fixed;top:0;bottom:0;width:min(84vw,300px);z-index:30;
@@ -196,6 +227,10 @@
     body.insp-open .side.right{transform:none}
     body.pal-open .scrim,body.insp-open .scrim{display:block}
     .topbar{gap:9px 10px}
+  }
+  @media (min-width:901px){
+    .cols{grid-template-columns:240px 1fr 300px}
+    .drawerToggle{display:none}
   }
   @media (max-width:520px){
     .brand .tick{display:none}
@@ -282,6 +317,17 @@
     </aside>
   </div>
   <div class="scrim" id="scrim"></div>
+  <div class="toast-host" id="toastHost"></div>
+  <div class="modal-scrim" id="confirmModal" role="dialog" aria-modal="true">
+    <div class="modal">
+      <h3 id="confirmTitle">Confirm</h3>
+      <p id="confirmMsg"></p>
+      <div class="row">
+        <button class="btn ghost" id="confirmCancel">Cancel</button>
+        <button class="btn primary" id="confirmOk">OK</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -367,6 +413,32 @@ let addN=0;
 
 function uid(){return "i"+Math.random().toString(36).slice(2,9)}
 function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+
+function toast(msg, ms=2200){
+  const host=document.getElementById("toastHost");
+  const el=document.createElement("div");
+  el.className="toast"; el.textContent=msg;
+  host.appendChild(el);
+  requestAnimationFrame(()=>el.classList.add("show"));
+  setTimeout(()=>{el.classList.remove("show"); setTimeout(()=>el.remove(),250);}, ms);
+}
+function confirmAsync(title, msg, okLabel="OK"){
+  return new Promise((resolve)=>{
+    const m=document.getElementById("confirmModal");
+    document.getElementById("confirmTitle").textContent=title;
+    document.getElementById("confirmMsg").textContent=msg;
+    document.getElementById("confirmOk").textContent=okLabel;
+    m.classList.add("open");
+    const done=(v)=>{ m.classList.remove("open"); cleanup(); resolve(v); };
+    const ok=()=>done(true), cancel=()=>done(false);
+    const cleanup=()=>{
+      document.getElementById("confirmOk").removeEventListener("click",ok);
+      document.getElementById("confirmCancel").removeEventListener("click",cancel);
+    };
+    document.getElementById("confirmOk").addEventListener("click",ok);
+    document.getElementById("confirmCancel").addEventListener("click",cancel);
+  });
+}
 
 // ---- wall geometry ----
 function wallById(id){
@@ -1574,10 +1646,11 @@ document.getElementById("viewSeg").addEventListener("click",e=>{
 document.getElementById("btnFit").onclick=()=>{autoFit=true;fit2D();render();};
 document.getElementById("zin").onclick=()=>{autoFit=false;z2.scale=clamp(z2.scale*1.15,0.15,20);draw2D();};
 document.getElementById("zout").onclick=()=>{autoFit=false;z2.scale=clamp(z2.scale*0.87,0.15,20);draw2D();};
-document.getElementById("btnReset").onclick=()=>{
-  if(confirm("Clear the room and start over? This can't be undone."))
-  {state=DEFAULT();sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;penPts=[];penCursor=null;setMode("select");autoFit=true;syncRoomInputs();fit2D();commit();refreshUndoButtons();}
-};
+document.getElementById("btnReset").addEventListener("click", async ()=>{
+  if(!(await confirmAsync("Reset plan?","This clears the room, cabinets, and openings. This cannot be undone from history after reset.","Reset"))) return;
+  state=DEFAULT();sel=null;selIds.clear();undoStack=[];redoStack=[];_snap=null;penPts=[];penCursor=null;setMode("select");autoFit=true;syncRoomInputs();fit2D();commit();refreshUndoButtons();
+  toast("Plan reset");
+});
 document.getElementById("btnExport").onclick=()=>{
   const blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"});
   const a=document.createElement("a");a.href=URL.createObjectURL(blob);
